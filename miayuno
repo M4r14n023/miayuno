@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguimiento de Ayuno Intermitente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .progress-ring__circle {
+            transition: stroke-dashoffset 0.5s;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        /* Ocultar las flechas en los inputs de tipo number */
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md mx-auto bg-gray-800 rounded-2xl shadow-2xl p-6 md:p-8 space-y-6">
+        
+        <header class="text-center">
+            <h1 class="text-2xl md:text-3xl font-bold text-cyan-400">Rastreador de Ayuno</h1>
+            <p class="text-gray-400 mt-1">Controla tus períodos de ayuno y alimentación.</p>
+        </header>
+
+        <div id="plan-selector-container">
+            <label for="plan-selector" class="block text-sm font-medium text-gray-300 mb-2">Selecciona tu plan de ayuno:</label>
+            <select id="plan-selector" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg p-3 focus:ring-cyan-500 focus:border-cyan-500">
+                <option value="12">12:12 - Principiante</option>
+                <option value="14">14:10 - Intermedio</option>
+                <option value="16" selected>16:8 - Estándar</option>
+                <option value="18">18:6 - Guerrero</option>
+                <option value="20">20:4 - El Guerrero Definitivo</option>
+            </select>
+        </div>
+
+        <div class="relative flex items-center justify-center h-64 w-64 mx-auto">
+            <svg class="absolute inset-0" viewBox="0 0 120 120">
+                <circle class="text-gray-700" stroke-width="8" stroke="currentColor" fill="transparent" r="56" cx="60" cy="60"/>
+                <circle id="progress-circle"
+                    class="progress-ring__circle text-cyan-400"
+                    stroke-width="8"
+                    stroke-linecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r="56"
+                    cx="60"
+                    cy="60"/>
+            </svg>
+            <div id="timer-display" class="text-center z-10">
+                <div id="status-text" class="text-lg font-semibold text-gray-300">Listo para empezar</div>
+                <div id="time-elapsed" class="text-4xl font-bold tracking-tighter">00:00:00</div>
+                <div id="target-time" class="text-sm text-gray-500">Objetivo: --:--</div>
+            </div>
+        </div>
+
+        <!-- Controles -->
+        <div class="space-y-4">
+            <!-- Empezar con tiempo transcurrido -->
+            <div id="elapsed-time-container">
+                 <label class="block text-xs font-medium text-gray-400 mb-2 text-center">Empezar con tiempo transcurrido (opcional)</label>
+                 <div class="flex items-center justify-center gap-2">
+                     <input type="number" id="elapsed-hours" placeholder="Horas" min="0" class="w-20 bg-gray-700 text-white text-center rounded-md p-2 border border-gray-600 focus:ring-cyan-500 focus:border-cyan-500">
+                     <span class="text-gray-400">:</span>
+                     <input type="number" id="elapsed-minutes" placeholder="Min" min="0" max="59" class="w-20 bg-gray-700 text-white text-center rounded-md p-2 border border-gray-600 focus:ring-cyan-500 focus:border-cyan-500">
+                 </div>
+            </div>
+
+            <button id="start-fast-btn" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform active:scale-95">
+                Iniciar Ayuno
+            </button>
+            <button id="end-fast-btn" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform active:scale-95 hidden">
+                Terminar Ayuno
+            </button>
+        </div>
+
+        <!-- Historial -->
+        <div>
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="text-lg font-semibold text-gray-300">Historial Reciente</h2>
+                <button id="clear-history-btn" class="text-gray-400 hover:text-white p-1 rounded-full transition hidden">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                </button>
+            </div>
+            <div id="history-container" class="bg-gray-900/50 rounded-lg p-4 max-h-40 overflow-y-auto space-y-2">
+                <p class="text-gray-500 text-center">No hay ayunos completados todavía.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Elementos del DOM ---
+            const planSelector = document.getElementById('plan-selector');
+            const startBtn = document.getElementById('start-fast-btn');
+            const endBtn = document.getElementById('end-fast-btn');
+            const planSelectorContainer = document.getElementById('plan-selector-container');
+            const statusText = document.getElementById('status-text');
+            const timeElapsed = document.getElementById('time-elapsed');
+            const targetTimeEl = document.getElementById('target-time');
+            const historyContainer = document.getElementById('history-container');
+            const progressCircle = document.getElementById('progress-circle');
+            const clearHistoryBtn = document.getElementById('clear-history-btn');
+            const elapsedTimeContainer = document.getElementById('elapsed-time-container');
+            const elapsedHoursInput = document.getElementById('elapsed-hours');
+            const elapsedMinutesInput = document.getElementById('elapsed-minutes');
+
+            const radius = progressCircle.r.baseVal.value;
+            const circumference = 2 * Math.PI * radius;
+            progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
+            
+            // --- Estado de la aplicación ---
+            let state = {
+                isFasting: false,
+                startTime: null,
+                endTime: null,
+                planHours: 16,
+                history: [],
+                timerInterval: null
+            };
+
+            let isConfirmingDelete = false;
+            let confirmDeleteTimeout;
+
+            // --- Funciones principales ---
+
+            const startFast = () => {
+                const now = new Date();
+                const planHours = parseInt(planSelector.value);
+
+                const elapsedHours = parseInt(elapsedHoursInput.value) || 0;
+                const elapsedMinutes = parseInt(elapsedMinutesInput.value) || 0;
+                const elapsedMilliseconds = (elapsedHours * 3600 + elapsedMinutes * 60) * 1000;
+                
+                state.isFasting = true;
+                state.startTime = now.getTime() - elapsedMilliseconds;
+                state.planHours = planHours;
+                state.endTime = new Date(state.startTime + planHours * 60 * 60 * 1000).getTime();
+                
+                state.timerInterval = setInterval(updateTimer, 1000);
+                updateUI();
+                saveState();
+            };
+
+            const endFast = () => {
+                if (state.isFasting) {
+                    const now = new Date().getTime();
+                    const duration = now - state.startTime;
+                    state.history.unshift({
+                        startTime: state.startTime,
+                        endTime: now,
+                        duration: duration,
+                        planHours: state.planHours,
+                        completed: duration >= state.planHours * 60 * 60 * 1000
+                    });
+                     if (state.history.length > 20) state.history.pop();
+                }
+
+                clearInterval(state.timerInterval);
+                state.isFasting = false;
+                state.startTime = null;
+                state.endTime = null;
+                state.timerInterval = null;
+                
+                updateUI();
+                saveState();
+            };
+            
+            const clearHistory = () => {
+                state.history = [];
+                updateUI();
+                saveState();
+            };
+
+            const deleteHistoryItem = (startTime) => {
+                state.history = state.history.filter(item => item.startTime !== startTime);
+                updateUI();
+                saveState();
+            };
+
+
+            const updateTimer = () => {
+                if (!state.isFasting) return;
+                const now = new Date().getTime();
+                const elapsed = now - state.startTime;
+                
+                if (elapsed >= state.planHours * 60 * 60 * 1000) {
+                    statusText.textContent = "¡Objetivo Alcanzado!";
+                    statusText.classList.add('text-green-400');
+                }
+
+                timeElapsed.textContent = formatDuration(elapsed);
+                const progress = Math.min(elapsed / (state.planHours * 60 * 60 * 1000), 1);
+                setProgress(progress);
+            };
+
+            // --- Funciones de UI ---
+
+            const updateUI = () => {
+                if (state.isFasting) {
+                    startBtn.classList.add('hidden');
+                    endBtn.classList.remove('hidden');
+                    planSelectorContainer.classList.add('hidden');
+                    elapsedTimeContainer.classList.add('hidden');
+                    statusText.textContent = "En Ayuno...";
+                    statusText.classList.remove('text-green-400');
+                    targetTimeEl.textContent = `Objetivo: ${formatTime(new Date(state.endTime))}`;
+                    updateTimer();
+                } else {
+                    startBtn.classList.remove('hidden');
+                    endBtn.classList.add('hidden');
+                    planSelectorContainer.classList.remove('hidden');
+                    elapsedTimeContainer.classList.remove('hidden');
+                    elapsedHoursInput.value = '';
+                    elapsedMinutesInput.value = '';
+                    statusText.textContent = "Listo para empezar";
+                    timeElapsed.textContent = "00:00:00";
+                    targetTimeEl.textContent = "Objetivo: --:--";
+                    setProgress(0);
+                }
+                clearHistoryBtn.classList.toggle('hidden', state.history.length === 0);
+                renderHistory();
+            };
+            
+            const setProgress = (percent) => {
+                const offset = circumference - percent * circumference;
+                progressCircle.style.strokeDashoffset = offset;
+            };
+
+            const renderHistory = () => {
+                if (state.history.length === 0) {
+                    historyContainer.innerHTML = '<p class="text-gray-500 text-center">No hay ayunos completados todavía.</p>';
+                    return;
+                }
+                historyContainer.innerHTML = state.history.map(fast => {
+                    const startDate = new Date(fast.startTime);
+                    const durationStr = formatDuration(fast.duration);
+                    const completedClass = fast.completed ? 'border-green-500/50' : 'border-yellow-500/50';
+                    const icon = fast.completed 
+                        ? `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-400"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`
+                        : `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-400"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+                    
+                    return `
+                        <div class="flex items-center justify-between p-2.5 bg-gray-700/60 rounded-lg border-l-4 ${completedClass}">
+                            <div class="flex items-center gap-3">
+                                ${icon}
+                                <div>
+                                    <p class="font-medium text-sm text-gray-200">${startDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })} a las ${formatTime(startDate)}</p>
+                                    <p class="text-xs text-gray-400">Duración: ${durationStr} (${fast.planHours}h plan)</p>
+                                </div>
+                            </div>
+                            <button class="delete-item-btn text-gray-500 hover:text-red-400 p-1" data-id="${fast.startTime}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            };
+
+            // --- Funciones de Utilidad ---
+
+            const formatDuration = (ms) => {
+                if (ms < 0) ms = 0;
+                const totalSeconds = Math.floor(ms / 1000);
+                const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+                const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+                const seconds = String(totalSeconds % 60).padStart(2, '0');
+                return `${hours}:${minutes}:${seconds}`;
+            };
+            
+            const formatTime = (date) => date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+            // --- Local Storage ---
+
+            const saveState = () => {
+                const stateToSave = { ...state, timerInterval: null };
+                localStorage.setItem('fastingTrackerState', JSON.stringify(stateToSave));
+            };
+
+            const loadState = () => {
+                const savedState = localStorage.getItem('fastingTrackerState');
+                if (savedState) {
+                    const parsedState = JSON.parse(savedState);
+                    state = { ...state, ...parsedState };
+                    if (state.isFasting) {
+                        state.timerInterval = setInterval(updateTimer, 1000);
+                    }
+                }
+                planSelector.value = state.planHours;
+                updateUI();
+            };
+            
+            // --- Event Listeners ---
+            startBtn.addEventListener('click', startFast);
+            endBtn.addEventListener('click', endFast);
+            planSelector.addEventListener('change', (e) => {
+                state.planHours = parseInt(e.target.value);
+                saveState();
+            });
+
+            clearHistoryBtn.addEventListener('click', () => {
+                if (!isConfirmingDelete) {
+                    isConfirmingDelete = true;
+                    clearHistoryBtn.classList.add('text-red-500');
+                    confirmDeleteTimeout = setTimeout(() => {
+                        isConfirmingDelete = false;
+                        clearHistoryBtn.classList.remove('text-red-500');
+                    }, 3000);
+                } else {
+                    clearTimeout(confirmDeleteTimeout);
+                    isConfirmingDelete = false;
+                    clearHistoryBtn.classList.remove('text-red-500');
+                    clearHistory();
+                }
+            });
+
+            historyContainer.addEventListener('click', (e) => {
+                const deleteButton = e.target.closest('.delete-item-btn');
+                if (deleteButton) {
+                    const startTime = parseInt(deleteButton.dataset.id);
+                    deleteHistoryItem(startTime);
+                }
+            });
+
+            // --- Inicialización ---
+            loadState();
+        });
+    </script>
+
+</body>
+</html>
